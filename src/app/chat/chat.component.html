@@ -1,9 +1,18 @@
 <div class="chat-container">
   <div class="chat-header">
-    <h1>AI Assistant</h1>
-    <button class="clear-btn" (click)="clearChat()" *ngIf="messages.length > 0">
-      Clear Chat
-    </button>
+    <div class="header-left">
+      <h1>AI Assistant</h1>
+      <span class="session-badge" *ngIf="sessionId">
+        <span class="session-dot"></span>
+        Active Session
+      </span>
+    </div>
+    <div class="header-actions">
+      <button class="new-chat-btn" (click)="startNewChat()" *ngIf="messages.length > 0">
+        <span class="btn-icon">+</span>
+        New Chat
+      </button>
+    </div>
   </div>
 
   <div class="messages-container" #messagesContainer>

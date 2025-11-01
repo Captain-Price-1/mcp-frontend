@@ -1,5 +1,5 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
-import { ChatService, ChatMessage } from '../chat.service';
+import { ChatService, ChatMessage, Action } from '../chat.service';
 import { marked } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -14,6 +14,7 @@ export class ChatComponent implements OnInit, AfterViewChecked {
   messages: ChatMessage[] = [];
   userInput: string = '';
   isLoading: boolean = false;
+  sessionId: string | null = null;
   private shouldScrollToBottom = false;
 
   constructor(
@@ -53,8 +54,15 @@ export class ChatComponent implements OnInit, AfterViewChecked {
     this.isLoading = true;
     this.shouldScrollToBottom = true;
 
-    this.chatService.sendQuery(prompt).subscribe({
+    // Send with sessionId if available
+    this.chatService.sendQuery(prompt, this.sessionId || undefined).subscribe({
       next: (response) => {
+        // Store sessionId from response
+        if (response.metadata?.sessionId) {
+          this.sessionId = response.metadata.sessionId;
+        }
+
+        // Create assistant message with the response
         const assistantMessage: ChatMessage = {
           role: 'assistant',
           content: response.response,
@@ -62,8 +70,14 @@ export class ChatComponent implements OnInit, AfterViewChecked {
           timestamp: new Date()
         };
         this.messages.push(assistantMessage);
-        this.isLoading = false;
         this.shouldScrollToBottom = true;
+
+        // Process actions if they exist
+        if (response.actions && response.actions.length > 0) {
+          this.processActions(response.actions);
+        } else {
+          this.isLoading = false;
+        }
       },
       error: (error) => {
         console.error('Error:', error);
@@ -76,6 +90,63 @@ export class ChatComponent implements OnInit, AfterViewChecked {
         this.isLoading = false;
         this.shouldScrollToBottom = true;
       }
+    });
+  }
+
+  private processActions(actions: Action[]): void {
+    let completedActions = 0;
+    const totalActions = actions.length;
+
+    if (totalActions === 0) {
+      this.isLoading = false;
+      return;
+    }
+
+    actions.forEach((action, index) => {
+      console.log(`Processing action ${index + 1} of ${totalActions}:`, action);
+      
+      this.chatService.processAction(action).subscribe({
+        next: (result) => {
+          completedActions++;
+          console.log(`Action ${index + 1} completed successfully:`, result);
+          
+          // Create a message showing the action result
+          const actionType = action.type === 'send_sms' ? 'SMS' : action.type === 'send_email' ? 'Email' : action.type;
+          const actionMessage: ChatMessage = {
+            role: 'assistant',
+            content: `**${actionType} Notification:**\n\n${result.message || 'Processed successfully'}\n\n**To:** ${action.user_ids.join(', ')}\n**Reason:** ${action.reason}`,
+            timestamp: new Date()
+          };
+          this.messages.push(actionMessage);
+          this.shouldScrollToBottom = true;
+
+          // When all actions are processed, stop loading
+          if (completedActions === totalActions) {
+            this.isLoading = false;
+          }
+        },
+        error: (error) => {
+          console.error(`Action ${index + 1} processing error:`, error);
+          completedActions++;
+          
+          // Extract more details from error
+          const errorDetails = error?.details || error?.message || 'Unknown error';
+          const errorStatus = error?.status ? ` (Status: ${error.status})` : '';
+          
+          const errorMessage: ChatMessage = {
+            role: 'assistant',
+            content: `**Error processing ${action.type}:**\n\n${errorDetails}${errorStatus}\n\n**Action details:**\n- Type: ${action.type}\n- To: ${action.user_ids.join(', ')}\n- Reason: ${action.reason}`,
+            timestamp: new Date()
+          };
+          this.messages.push(errorMessage);
+          this.shouldScrollToBottom = true;
+
+          // When all actions are processed, stop loading
+          if (completedActions === totalActions) {
+            this.isLoading = false;
+          }
+        }
+      });
     });
   }
 
@@ -107,6 +178,12 @@ export class ChatComponent implements OnInit, AfterViewChecked {
 
   clearChat(): void {
     this.messages = [];
+  }
+
+  startNewChat(): void {
+    this.messages = [];
+    this.sessionId = null;
+    this.userInput = '';
   }
 }
 
