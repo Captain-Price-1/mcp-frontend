@@ -1,0 +1,88 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <h1>AI Assistant</h1>
+    <button class="clear-btn" (click)="clearChat()" *ngIf="messages.length > 0">
+      Clear Chat
+    </button>
+  </div>
+
+  <div class="messages-container" #messagesContainer>
+    <div *ngIf="messages.length === 0" class="welcome-message">
+      <div class="welcome-icon">💬</div>
+      <h2>How can I help you today?</h2>
+      <p>Ask me anything and I'll do my best to assist you.</p>
+    </div>
+
+    <div *ngFor="let message of messages" 
+         class="message-wrapper"
+         [class.user-wrapper]="message.role === 'user'"
+         [class.assistant-wrapper]="message.role === 'assistant'">
+      
+      <div class="message" 
+           [class.user-message]="message.role === 'user'"
+           [class.assistant-message]="message.role === 'assistant'">
+        
+        <div class="message-avatar">
+          <span *ngIf="message.role === 'user'">👤</span>
+          <span *ngIf="message.role === 'assistant'">🤖</span>
+        </div>
+
+        <div class="message-content">
+          <div class="message-role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</div>
+          
+          <div *ngIf="message.role === 'user'" class="message-text">
+            {{ message.content }}
+          </div>
+          
+          <div *ngIf="message.role === 'assistant'" 
+               class="message-text markdown-content"
+               [innerHTML]="parseMarkdown(message.content)">
+          </div>
+
+          <div *ngIf="message.charts && message.charts.length > 0" class="charts-container">
+            <div *ngFor="let chartUrl of message.charts" class="chart-wrapper">
+              <img [src]="chartUrl" alt="Chart" class="chart-image" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="isLoading" class="message-wrapper assistant-wrapper">
+      <div class="message assistant-message">
+        <div class="message-avatar">
+          <span>🤖</span>
+        </div>
+        <div class="message-content">
+          <div class="message-role">Assistant</div>
+          <div class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-container">
+    <div class="input-wrapper">
+      <textarea
+        [(ngModel)]="userInput"
+        (keypress)="onKeyPress($event)"
+        placeholder="Type your message here..."
+        rows="1"
+        [disabled]="isLoading"
+        class="message-input"
+      ></textarea>
+      <button 
+        (click)="sendMessage()" 
+        [disabled]="!userInput.trim() || isLoading"
+        class="send-btn">
+        <span *ngIf="!isLoading">Send</span>
+        <span *ngIf="isLoading">...</span>
+      </button>
+    </div>
+  </div>
+</div>
+
